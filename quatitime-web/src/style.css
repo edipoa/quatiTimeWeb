@@ -1,0 +1,89 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap');
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --slate-900: #0F172A;
+  --slate-800: #1E293B;
+  --slate-700: #334155;
+  --slate-500: #64748B;
+  --slate-300: #CBD5E1;
+  --slate-200: #E2E8F0;
+  --slate-100: #F1F5F9;
+  --slate-50:  #F8FAFC;
+  --white:     #FFFFFF;
+
+  --accent:       #6D28D9;
+  --accent-light: #EDE9FE;
+  --accent-hover: #5B21B6;
+
+  --green:      #16A34A;
+  --green-bg:   #DCFCE7;
+  --amber:      #D97706;
+  --amber-bg:   #FEF3C7;
+  --red:        #DC2626;
+  --red-bg:     #FEF2F2;
+
+  font-family: 'Inter', system-ui, sans-serif;
+  font-size: 14px;
+  color: var(--slate-900);
+  background: var(--slate-50);
+}
+
+body { min-height: 100vh; }
+
+#app { min-height: 100vh; }
+
+button {
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  border: none;
+  border-radius: 6px;
+  padding: 6px 14px;
+  transition: background 0.15s;
+}
+button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.btn-primary { background: var(--accent); color: #fff; }
+.btn-primary:hover:not(:disabled) { background: var(--accent-hover); }
+
+.btn-secondary {
+  background: var(--slate-100);
+  color: var(--slate-700);
+  border: 1px solid var(--slate-200);
+}
+.btn-secondary:hover:not(:disabled) { background: var(--slate-200); }
+
+.btn-danger {
+  background: transparent;
+  color: var(--red);
+  border: 1px solid var(--red);
+}
+.btn-danger:hover:not(:disabled) { background: var(--red-bg); }
+
+input, textarea {
+  font-family: inherit;
+  font-size: 14px;
+  border: 1px solid var(--slate-300);
+  border-radius: 6px;
+  padding: 7px 10px;
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+  width: 100%;
+}
+input:focus, textarea:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-light);
+}
+
+.badge {
+  display: inline-block;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 500;
+  padding: 2px 8px;
+}
+.badge-green { background: var(--green-bg); color: var(--green); }
+.badge-amber { background: var(--amber-bg); color: var(--amber); }
