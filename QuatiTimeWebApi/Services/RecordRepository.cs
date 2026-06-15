@@ -1,8 +1,11 @@
 using Microsoft.Data.Sqlite;
+using PortalHorasApi.Model;
 using QuatiTimeWebApi.Data;
 using QuatiTimeWebApi.Models;
 
 namespace QuatiTimeWebApi.Services;
+
+public record PendingRecord(int Id, int TaskId, DateTime Date, string Description, decimal Time);
 
 public class RecordRepository
 {
@@ -13,7 +16,7 @@ public class RecordRepository
         _db = db;
     }
 
-    public async Task<List<RecordDto>> GetAllAsync(string userId, IList<PortalHorasApi.Model.Tarefa> tasks)
+    public async Task<List<RecordDto>> GetAllAsync(string userId, IList<Tarefa> tasks)
     {
         await using var conn = _db.CreateConnection();
         await using var cmd = conn.CreateCommand();
@@ -43,19 +46,20 @@ public class RecordRepository
     public async Task<int> CreateAsync(string userId, CreateRecordRequest req)
     {
         await using var conn = _db.CreateConnection();
-        await using var cmd = conn.CreateCommand();
-        cmd.CommandText = """
-            INSERT INTO records (user_id, task_id, date, description, time, synchronized)
-            VALUES (@userId, @taskId, @date, @desc, @time, 0);
-            SELECT last_insert_rowid();
-            """;
-        cmd.Parameters.AddWithValue("@userId", userId);
-        cmd.Parameters.AddWithValue("@taskId", req.TaskId);
-        cmd.Parameters.AddWithValue("@date", req.Date.ToString("yyyy-MM-dd"));
-        cmd.Parameters.AddWithValue("@desc", req.Description);
-        cmd.Parameters.AddWithValue("@time", (double)req.Time);
 
-        return Convert.ToInt32(await cmd.ExecuteScalarAsync());
+        // INSERT separado do SELECT — Microsoft.Data.Sqlite não suporta multi-statement
+        await using var insert = conn.CreateCommand();
+        insert.CommandText = "INSERT INTO records (user_id, task_id, date, description, time, synchronized) VALUES (@userId, @taskId, @date, @desc, @time, 0)";
+        insert.Parameters.AddWithValue("@userId", userId);
+        insert.Parameters.AddWithValue("@taskId", req.TaskId);
+        insert.Parameters.AddWithValue("@date", req.Date.ToString("yyyy-MM-dd"));
+        insert.Parameters.AddWithValue("@desc", req.Description);
+        insert.Parameters.AddWithValue("@time", (double)req.Time);
+        await insert.ExecuteNonQueryAsync();
+
+        await using var lastId = conn.CreateCommand();
+        lastId.CommandText = "SELECT last_insert_rowid()";
+        return Convert.ToInt32(await lastId.ExecuteScalarAsync());
     }
 
     public async Task UpdateAsync(string userId, int id, UpdateRecordRequest req)
@@ -63,9 +67,10 @@ public class RecordRepository
         await using var conn = _db.CreateConnection();
         await using var cmd = conn.CreateCommand();
         cmd.CommandText = """
-            UPDATE records SET date = @date, description = @desc, time = @time
+            UPDATE records SET task_id = @taskId, date = @date, description = @desc, time = @time
             WHERE id = @id AND user_id = @userId
             """;
+        cmd.Parameters.AddWithValue("@taskId", req.TaskId);
         cmd.Parameters.AddWithValue("@date", req.Date.ToString("yyyy-MM-dd"));
         cmd.Parameters.AddWithValue("@desc", req.Description);
         cmd.Parameters.AddWithValue("@time", (double)req.Time);
@@ -103,17 +108,23 @@ public class RecordRepository
         await cmd.ExecuteNonQueryAsync();
     }
 
-    public async Task<List<(int Id, int TaskId, DateTime Date, string Description, decimal Time)>> GetPendingAsync(string userId)
+    public async Task<List<PendingRecord>> GetPendingAsync(string userId)
     {
         await using var conn = _db.CreateConnection();
         await using var cmd = conn.CreateCommand();
         cmd.CommandText = "SELECT id, task_id, date, description, time FROM records WHERE user_id = @userId AND synchronized = 0";
         cmd.Parameters.AddWithValue("@userId", userId);
 
-        var result = new List<(int, int, DateTime, string, decimal)>();
+        var result = new List<PendingRecord>();
         await using var reader = await cmd.ExecuteReaderAsync();
         while (await reader.ReadAsync())
-            result.Add((reader.GetInt32(0), reader.GetInt32(1), DateTime.Parse(reader.GetString(2)), reader.GetString(3), (decimal)reader.GetDouble(4)));
+            result.Add(new PendingRecord(
+                reader.GetInt32(0),
+                reader.GetInt32(1),
+                DateTime.Parse(reader.GetString(2)),
+                reader.GetString(3),
+                (decimal)reader.GetDouble(4)
+            ));
 
         return result;
     }

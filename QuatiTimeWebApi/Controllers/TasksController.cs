@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using QuatiTimeWebApi.Middleware;
 using QuatiTimeWebApi.Services;
 
 namespace QuatiTimeWebApi.Controllers;

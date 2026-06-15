@@ -1,52 +1,76 @@
 using ErrorOr;
-using PortalHorasApi;
-using PortalHorasApi.Model;
 using System.Collections.Concurrent;
 
 namespace QuatiTimeWebApi.Services;
 
 public class PortalSessionService
 {
-    private readonly Client _client;
-    private readonly ConcurrentDictionary<string, ISession> _sessions = new();
+    private readonly PortalHorasApi.Client _client;
+    private readonly ConcurrentDictionary<string, PortalHorasApi.ISession> _sessions = new();
 
-    public PortalSessionService(Client client)
+    public PortalSessionService(PortalHorasApi.Client client)
     {
         _client = client;
     }
 
-    public async Task<ErrorOr<ISession>> GetOrCreateSession(SessionPayload payload)
-    {
-        if (_sessions.TryGetValue(payload.UserId, out var existing))
-            return existing.ToErrorOr();
-
-        return await CreateSession(payload);
-    }
-
-    public async Task<ErrorOr<ISession>> CreateSession(SessionPayload payload)
+    public async Task<bool> CreateSession(SessionPayload payload)
     {
         var result = await _client.CreateSession(payload.Username, payload.Password);
-        if (result.IsError) return result.Errors;
+        if (result.IsError) return false;
+
+        _sessions[payload.UserId] = result.Value;
+        return true;
+    }
+
+    private async Task<PortalHorasApi.ISession?> GetOrCreate(SessionPayload payload)
+    {
+        if (_sessions.TryGetValue(payload.UserId, out var existing))
+            return existing;
+
+        return await CreateSessionInternal(payload);
+    }
+
+    private async Task<PortalHorasApi.ISession?> CreateSessionInternal(SessionPayload payload)
+    {
+        var result = await _client.CreateSession(payload.Username, payload.Password);
+        if (result.IsError) return null;
 
         _sessions[payload.UserId] = result.Value;
         return result.Value;
     }
 
-    public async Task<ErrorOr<T>> WithRetry<T>(SessionPayload payload, Func<ISession, Task<ErrorOr<T>>> action)
+    public async Task<ErrorOr<T>> WithRetry<T>(SessionPayload payload, Func<PortalHorasApi.ISession, Task<ErrorOr<T>>> action)
     {
-        var sessionResult = await GetOrCreateSession(payload);
-        if (sessionResult.IsError) return sessionResult.Errors;
+        var session = await GetOrCreate(payload);
+        if (session is null)
+            return Error.Unauthorized("Auth", "Login no portal falhou");
 
-        var response = await action(sessionResult.Value);
+        ErrorOr<T> response;
+        try
+        {
+            response = await action(session);
+        }
+        catch (OperationCanceledException)
+        {
+            return Error.Failure("Timeout", "O portal não respondeu a tempo. Tente novamente.");
+        }
 
         if (!response.IsError || !response.Errors.Any(e => e.Type == ErrorType.Unauthorized))
             return response;
 
         _sessions.TryRemove(payload.UserId, out _);
-        var renewed = await CreateSession(payload);
-        if (renewed.IsError) return renewed.Errors;
+        session = await CreateSessionInternal(payload);
+        if (session is null)
+            return Error.Unauthorized("Auth", "Re-login no portal falhou");
 
-        return await action(renewed.Value);
+        try
+        {
+            return await action(session);
+        }
+        catch (OperationCanceledException)
+        {
+            return Error.Failure("Timeout", "O portal não respondeu a tempo. Tente novamente.");
+        }
     }
 
     public void RemoveSession(string userId) => _sessions.TryRemove(userId, out _);

@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using QuatiTimeWebApi.Middleware;
 using QuatiTimeWebApi.Models;
 using QuatiTimeWebApi.Services;
 
@@ -22,11 +23,12 @@ public class AuthController : ControllerBase
     [HttpPost("login")]
     public async Task<IActionResult> Login([FromBody] LoginRequest request)
     {
-        var userId = Guid.NewGuid().ToString();
+        // UserId derivado do username para ser estável entre sessões
+        var userId = request.Username.ToLowerInvariant();
         var payload = new SessionPayload(request.Username, request.Password, userId);
 
-        var session = await _portalSession.CreateSession(payload);
-        if (session.IsError)
+        var ok = await _portalSession.CreateSession(payload);
+        if (!ok)
             return Unauthorized(new { error = "Credenciais inválidas ou portal inacessível" });
 
         var cookieValue = _encryption.Encrypt(payload);
@@ -35,12 +37,14 @@ public class AuthController : ControllerBase
         Response.Cookies.Append("qts", cookieValue, new CookieOptions
         {
             HttpOnly = true,
-            Secure = true,
-            SameSite = SameSiteMode.None,
+            Secure = false,   // false em dev local (sem HTTPS)
+            SameSite = SameSiteMode.Lax,
             Expires = DateTimeOffset.UtcNow.AddHours(hours)
         });
 
-        return Ok(new { userId });
+        // Retorna o token no body para o frontend usar como header (dev/proxy)
+        // O cookie também é mantido como fallback para produção (cross-origin com HTTPS)
+        return Ok(new { userId, token = cookieValue });
     }
 
     [HttpDelete("logout")]

@@ -4,8 +4,6 @@ namespace QuatiTimeWebApi.Middleware;
 
 public static class SessionExtensions
 {
-    private const string CookieName = "qts";
-
     public static SessionPayload? GetSession(this HttpContext ctx)
         => ctx.Items["session"] as SessionPayload;
 
@@ -30,14 +28,17 @@ public class SessionMiddleware
             return;
         }
 
-        var cookie = ctx.Request.Cookies["qts"];
-        if (string.IsNullOrEmpty(cookie))
+        // Aceita token via header (dev/proxy) OU cookie (produção cross-origin)
+        var token = ctx.Request.Headers["X-Session-Token"].FirstOrDefault()
+                    ?? ctx.Request.Cookies["qts"];
+
+        if (string.IsNullOrEmpty(token))
         {
             ctx.Response.StatusCode = 401;
             return;
         }
 
-        var payload = encryption.Decrypt(cookie);
+        var payload = encryption.Decrypt(token);
         if (payload is null)
         {
             ctx.Response.StatusCode = 401;

@@ -29,8 +29,12 @@ export const useAppStore = defineStore('app', () => {
   }
 
   async function loadRecords() {
-    const { data } = await recordsApi.getAll()
-    records.value = data
+    try {
+      const { data } = await recordsApi.getAll()
+      records.value = data
+    } catch (err) {
+      console.error('[loadRecords]', err)
+    }
   }
 
   async function addRecord(payload) {
@@ -39,6 +43,7 @@ export const useAppStore = defineStore('app', () => {
   }
 
   async function updateRecord(id, payload) {
+    // payload: { taskId, date, description, time }
     await recordsApi.update(id, payload)
     await loadRecords()
   }

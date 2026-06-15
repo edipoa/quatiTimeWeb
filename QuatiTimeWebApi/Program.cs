@@ -1,4 +1,3 @@
-using PortalHorasApi;
 using QuatiTimeWebApi.Data;
 using QuatiTimeWebApi.Middleware;
 using QuatiTimeWebApi.Services;
@@ -7,7 +6,6 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddControllers();
 
-// CORS — allow Vercel frontend
 var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? [];
 builder.Services.AddCors(options =>
 {
@@ -18,12 +16,11 @@ builder.Services.AddCors(options =>
               .AllowCredentials());
 });
 
-// PortalHorasApi
-builder.Services.AddSingleton<IApiConfiguration, DefaultApiConfiguration>();
-builder.Services.AddTransient<IHttpContextFactory, DefaultHttpContextFactory>();
-builder.Services.AddTransient<Client>();
+// PortalHorasApi — qualificado para evitar colisão com ASP.NET Core
+builder.Services.AddSingleton<PortalHorasApi.IApiConfiguration, PortalHorasApi.DefaultApiConfiguration>();
+builder.Services.AddTransient<PortalHorasApi.IHttpContextFactory, PortalHorasApi.DefaultHttpContextFactory>();
+builder.Services.AddTransient<PortalHorasApi.Client>();
 
-// App services
 builder.Services.AddSingleton<PortalSessionService>();
 builder.Services.AddSingleton<TaskCacheService>();
 builder.Services.AddSingleton<CookieEncryptionService>();
@@ -33,8 +30,9 @@ builder.Services.AddScoped<ChatParseService>();
 
 var app = builder.Build();
 
-// Initialize DB
-await app.Services.GetRequiredService<Database>().InitializeAsync();
+var db = app.Services.GetRequiredService<Database>();
+app.Logger.LogInformation("SQLite database: {Path}", db.FilePath);
+await db.InitializeAsync();
 
 app.UseCors();
 app.UseMiddleware<SessionMiddleware>();

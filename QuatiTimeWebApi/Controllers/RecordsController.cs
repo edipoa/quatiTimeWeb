@@ -1,5 +1,7 @@
+using ErrorOr;
 using Microsoft.AspNetCore.Mvc;
 using PortalHorasApi.Model;
+using QuatiTimeWebApi.Middleware;
 using QuatiTimeWebApi.Models;
 using QuatiTimeWebApi.Services;
 
@@ -24,7 +26,17 @@ public class RecordsController : ControllerBase
     public async Task<IActionResult> GetAll()
     {
         var payload = HttpContext.GetSession()!;
-        _taskCache.TryGet(payload.UserId, out var tasks);
+
+        if (!_taskCache.TryGet(payload.UserId, out var tasks))
+        {
+            var result = await _portalSession.WithRetry(payload, s => s.GetAllTasks());
+            if (!result.IsError)
+            {
+                tasks = result.Value;
+                _taskCache.Set(payload.UserId, tasks);
+            }
+        }
+
         var records = await _repo.GetAllAsync(payload.UserId, tasks ?? new List<Tarefa>());
         return Ok(records);
     }
@@ -60,25 +72,30 @@ public class RecordsController : ControllerBase
         var pending = await _repo.GetPendingAsync(payload.UserId);
 
         var results = new List<object>();
-        foreach (var (id, taskId, date, description, time) in pending)
+        foreach (var entry in pending)
         {
-            var record = new PortalHorasApi.Model.Record
+            var record = new Record
             {
-                TaskId = taskId,
-                Date = date,
-                Description = description,
-                Time = time,
+                TaskId = entry.TaskId,
+                Date = entry.Date,
+                Description = entry.Description,
+                Time = entry.Time,
             };
 
             var result = await _portalSession.WithRetry(payload, s => s.PostRecord(record));
             if (!result.IsError)
             {
-                await _repo.MarkSynchronizedAsync(payload.UserId, id);
-                results.Add(new { id, success = true });
+                await _repo.MarkSynchronizedAsync(payload.UserId, entry.Id);
+                results.Add(new { entry.Id, success = true });
+            }
+            else if (result.Errors.Any(e => e.Type == ErrorType.Unauthorized) ||
+                     result.Errors.Any(e => e.Description is "A failure has occurred."))
+            {
+                return Unauthorized(new { error = "Sessão do portal expirada. Faça login novamente." });
             }
             else
             {
-                results.Add(new { id, success = false, error = string.Join(", ", result.Errors.Select(e => e.Description)) });
+                results.Add(new { entry.Id, success = false, error = string.Join(", ", result.Errors.Select(e => e.Description)) });
             }
         }
 

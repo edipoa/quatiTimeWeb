@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using PortalHorasApi.Model;
+using QuatiTimeWebApi.Middleware;
 using QuatiTimeWebApi.Models;
 using QuatiTimeWebApi.Services;
 
