@@ -25,6 +25,7 @@ Thumbs.db
 # Build/publish artifacts
 publish/
 publish.zip
+QuatiTimeWebApi/wwwroot/
 
 # Install scripts and packages
 QuatiTimeWebApi/dotnet-install.sh

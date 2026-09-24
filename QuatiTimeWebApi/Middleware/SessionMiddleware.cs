@@ -22,7 +22,7 @@ public class SessionMiddleware
 
     public async Task InvokeAsync(HttpContext ctx, CookieEncryptionService encryption)
     {
-        if (ctx.Request.Path.StartsWithSegments("/api/auth"))
+        if (!ctx.Request.Path.StartsWithSegments("/api") || ctx.Request.Path.StartsWithSegments("/api/auth"))
         {
             await _next(ctx);
             return;

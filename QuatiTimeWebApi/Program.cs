@@ -34,8 +34,12 @@ var db = app.Services.GetRequiredService<Database>();
 app.Logger.LogInformation("SQLite database: {Path}", db.FilePath);
 await db.InitializeAsync();
 
+app.UseDefaultFiles();
+app.UseStaticFiles();
+
 app.UseCors();
 app.UseMiddleware<SessionMiddleware>();
 app.MapControllers();
+app.MapFallbackToFile("index.html");
 
 app.Run();
